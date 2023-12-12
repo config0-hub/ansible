@@ -1,0 +1,330 @@
+#!/usr/bin/env python
+#Written by Gary Leong  <gwleong@gmail.com, June 17,2023
+
+#from time import sleep
+
+import os
+import json
+import sys
+
+from config0_publisher.loggerly import Config0Logger
+from config0_publisher.resource_manage import ResourceCmdHelper
+from config0_publisher.serialization import b64_decode
+
+class MissingEnvironmentVariable(Exception):
+    pass
+
+def get_env_var(variable,default=None,must_exists=None):
+
+    _value = os.environ.get(variable)
+
+    if _value: 
+        return _value
+
+    if default: 
+        return default
+
+    if not must_exists: 
+        return
+
+    raise MissingEnvironmentVariable("{} does not exist".format(variable))
+
+class Main(ResourceCmdHelper):
+
+    def __init__(self,**kwargs):
+
+        self.classname = 'AnsibleWrapper'
+
+        # ref 4353245325
+        ResourceCmdHelper.__init__(self,
+                                   app_name="ansible",
+                                   set_variables=["method",
+                                                  "shelloutconfig"],
+                                   set_must_exists=["stateful_id"],
+                                   set_default_values={ "codebuild_basename":"config0-iac",
+                                                        "codebuildspec_version":"1",
+                                                        "failed_destroy":None,
+                                                        "build_timeout":3600,
+                                                        "build_image":"aws/codebuild/standard:4.0",
+                                                        "compute_type":"BUILD_GENERAL1_SMALL",
+                                                        "image_type":"LINUX_CONTAINER",
+                                                        "buildspec_file":"buildspec.yml"})
+
+
+        self.logger = Config0Logger(self.classname,
+                                    logcategory="cloudprovider")
+
+        self.logger.debug("Instantiating %s" % self.classname)
+
+        # The docker image to execute files
+        self.docker_image = get_env_var("DOCKER_RUNTIME",
+                                        default="elasticdev/{}-run-env".format(self.app_name))
+
+        self._set_exec_ymls()
+
+        self.run_dir = os.getcwd()
+
+    def _set_exec_ymls(self):
+
+        # determine execution ymls for ansible
+        self.exec_ymls = os.environ.get("ANS_VAR_exec_ymls")
+
+        if self.exec_ymls: 
+            return
+
+        self.exec_ymls = os.environ.get("ANS_VAR_EXEC_YMLS")
+
+        if self.exec_ymls: 
+            return
+
+        self.exec_ymls = get_env_var("{}_EXEC_YMLS".format(self.app_name.upper()),
+                                     default="install.yml",
+                                     must_exists=True)
+
+    def write_ssh_key(self):
+
+        '''
+        expects the key to base64 encoded
+        '''
+
+        private_key_hash = os.environ.get("ANS_VAR_private_key")
+
+        if not private_key_hash:
+            self.logger.error("Cannot determine private key from env var ANSIBLE_SSH_KEY/PRIVATE_SSH_KEY")
+            exit(11)
+
+        private_key = b64_decode(private_key_hash)
+
+        file_path = os.path.join(self.exec_dir,
+                                 "ssh_key.pem")
+
+        with open(file_path,"w") as f:
+            f.write(private_key)
+            f.write("\n")
+
+        cmd = "chmod 400 {}".format(file_path)
+        self._execute(cmd,output_to_json=False,exit_error=True)
+
+        self.logger.debug("#"*32)
+        self.logger.debug("")
+        self.logger.debug("Wrote ssh_key file {}".format(file_path))
+        self.logger.debug("")
+        self.logger.debug("#"*32)
+
+    def write_hosts_file(self):
+
+        hosts_hash = os.environ.get("ANS_VAR_hosts")
+
+        if not hosts_hash:
+            self.logger.error("Cannot determine hosts from environment variable ANSIBLE_HOSTS_HASH")
+            exit(11)
+
+        ansible_hosts = b64_decode(hosts_hash)
+
+        file_path = os.path.join(self.exec_dir,
+                                "hosts")
+
+        f = open(file_path,"w")
+
+        for _ip_group,_ips in ansible_hosts.items():
+
+            f.write('[{}]'.format(_ip_group))
+            f.write("\n")
+
+            for _ip in _ips: 
+                f.write(_ip)
+                f.write("\n")
+
+        f.close()
+
+        self.logger.debug("#"*32)
+        self.logger.debug("")
+        self.logger.debug("Wrote hosts file {}".format(file_path))
+        self.logger.debug("")
+        self.logger.debug("#"*32)
+
+    def _execute(self,cmd,output_to_json=False,exit_error=True,**kwargs):
+
+        return self.execute(cmd,
+                            output_to_json=output_to_json,
+                            exit_error=exit_error)
+
+    def _format_output(self,**kwargs):
+
+        results = []
+
+        output = kwargs["output"]
+        output_to_json= kwargs.get("output_to_json")
+
+        for _output in output:
+
+            if not _output.strip(): 
+                continue
+
+            results.append(_output)
+
+        if not output_to_json: 
+            return results
+
+        return json.loads(results)
+
+    def _add_tags(self,resource):
+
+        tags = get_env_var("RESOURCE_TAGS")
+
+        if not tags: 
+            return
+
+        tags = [ tag.strip() for tag in tags.split(",") ]
+
+        if not isinstance(resource.get("tags"),list): 
+            resource["tags"] = []
+
+        resource["tags"].extend(tags)
+        resource["tags"].append("ansible")
+
+        # remove duplicates
+        resource["tags"] = list(set(resource["tags"]))
+ 
+        return resource
+
+    def _get_env_filepath(self):
+
+        _docker_env_file = get_env_var("DOCKER_ENV_FILE",
+                                       default=".env")
+
+        self.docker_env_file = os.path.join(os.getcwd(),
+                                            _docker_env_file)
+
+        return self.docker_env_file
+
+    def _create_env_file(self):
+
+        docker_env_fields = get_env_var("DOCKER_ENV_FIELDS")
+
+        self._get_env_filepath()
+
+        if not docker_env_fields: 
+            self.logger.debug("No docker env fields specifield - skipping .env file")
+            return
+
+        f = open(self.docker_env_file,"w")
+
+        f.write("{}={}".format("ANSIBLE_EXEC_YMLS",
+                               self.exec_ymls))
+
+        self.logger.debug("Writing environment file {} with field {}".format(self.docker_env_file,
+                                                                             docker_env_fields))
+
+        for docker_env_field in docker_env_fields.split(","):
+
+            if not os.environ.get(docker_env_field.strip().upper()): 
+                continue
+
+            f.write("\n")
+            
+            f.write("{}={}".format(docker_env_field.strip().upper(),
+                                   os.environ[docker_env_field.strip().upper()]))
+
+        f.close()
+
+        return self.docker_env_file
+
+    def _exec_docker_local(self):
+
+        self._create_env_file()
+
+        os.chdir(self.run_share_dir)
+
+        cmd = "chmod 644 {}".format(self.exec_dir)
+
+        self._execute(cmd,
+                      output_to_json=False,
+                      exit_error=False)
+
+        if os.path.exists(self.docker_env_file):
+            cmd = 'docker run -e ANSIBLE_EXEC_YMLS="{}" --env-file {} --rm -v {}:{} {}'.format(self.exec_ymls,
+                                                                                               self.docker_env_file,
+                                                                                               self.run_share_dir,
+                                                                                               self.share_dir,
+                                                                                               self.docker_image)
+        else:
+            cmd = 'docker run -e ANSIBLE_EXEC_YMLS="{}" --rm -v {}:{} {}'.format(self.exec_ymls,
+                                                                                 self.run_share_dir,
+                                                                                 self.share_dir,
+                                                                                 self.docker_image)
+
+        self.logger.debug(cmd)
+
+        return self._execute(cmd,
+                             output_to_json=False,
+                             exit_error=True)
+
+    def create(self):
+
+        if not self.stateful_id:
+            self.logger.error("STATEFUL_ID needs to be set for using of docker run environments")
+            exit(9)
+
+        if not os.path.exists(self.exec_dir):
+            self.logger.warn("ansible directory must exists at {} - something went wrong".format(self.exec_dir))
+            os.chdir(self.run_dir)
+            exit(9)
+
+        results = self._exec_docker_local()
+
+        if results.get("output"):
+            self.logger.debug(results.get("output"))
+
+def usage():
+
+    print("""
+script + environmental variables
+
+or
+
+script + json_input (as argument)
+
+environmental variables:
+
+    basic:
+        DOCKER_RUNTIME/DOCKER_EXEC_ENV (default elasticdev/terraform-run-env) - the docker container/image to run execution
+        SHARE_DIR (default is /var/tmp/share) - the shared directory that is shared with the worker during docker container execution
+        METHOD - create
+
+    create:
+        RESOURCE_TYPE
+        RESOURCE_TAGS
+
+       """)
+    exit(4)
+
+if __name__ == '__main__':
+
+    try:
+        json_input = sys.argv[1]
+    except:
+        json_input = None
+
+    main = Main()
+
+    if json_input:
+        main.set_inputargs(json_input=json_input)
+    else:
+        main.set_inputargs(add_app_vars=True)
+   
+    method = main.inputargs.get("method")
+
+    if not method: 
+        method = "create"
+
+    if method == "create":
+        main.create()
+    elif method == "ssh_key":
+        main.write_ssh_key()
+    elif method == "hosts":
+        main.write_hosts_file()
+    else:
+        usage()
+        print('method "{}" not supported!'.format(method))
+        exit(4)

@@ -1,0 +1,100 @@
+#!/usr/bin/env python
+#
+#This file is part of "jiffy".
+#
+#Project: jiffy: A product for building and managing infrastructure: 
+#cloud provider services, and servers and their configurations.
+#
+#Description: A product for building and managing infrastructure. 
+#This includes third party API calls for services such as virtual
+#cloud servers, load balancers, databases, and other. The product 
+#manages connectivity and appropriate communication among these 
+#aws.
+#
+#Copyright (C) Gary Leong - All Rights Reserved
+#Unauthorized copying of this file, via any medium is strictly prohibited
+#Proprietary and confidential
+#Written by Gary Leong  <gwleong@gmail.com, September 17,2020
+
+import sys
+
+from config0_publisher.loggerly import Config0Logger
+from config0_publisher.resource_manage import ResourceCmdHelper
+
+class Main(ResourceCmdHelper):
+
+    def __init__(self,**kwargs):
+
+        ResourceCmdHelper.__init__(self,
+                                   app_name="ansible",
+                                   set_must_exists=["stateful_id"])
+
+        self.classname = 'ANSIBLE_HOSTS'
+        self.logger = Config0Logger(self.classname,logcategory="cloudprovider")
+        self.logger.debug("Instantiating %s" % self.classname)
+        self.set_inputargs(add_app_vars=True)
+
+        # if you want to remap vars for the application in the inputargs
+        # e.g. ANS_VAR_mongodb_public_ips to mongodb_public_ips
+        self.remap_app_vars()
+
+    def create(self):
+
+        #filepath = "{}/hosts".format(self.run_share_dir)
+        filepath = "{}/hosts".format(self.exec_dir)
+        _file = open(filepath,"w")
+
+        _ips = self.inputargs["host_ips"].split(",")
+        if not _ips: 
+            return
+
+        for _ip in _ips:
+            _file.write(_ip)
+            _file.write("\n")
+
+        _file.write("\n")
+
+        self.logger.debug("#"*32)
+        self.logger.debug("host ips file written to {}".format(filepath))
+        self.logger.debug("#"*32)
+
+def usage():
+
+    print("""
+script + environmental variables
+
+or
+
+script + json_input (as argument)
+
+environmental variables:
+
+    create:
+        JOB_INSTANCE_ID
+        SCHEDULE_ID
+        RUN_ID
+        METHOD
+        ANS_VAR_host_ips
+
+       """)
+    exit(4)
+
+if __name__ == '__main__':
+
+    try:
+        json_input = sys.argv[1]
+    except:
+        json_input = None
+
+    main = Main()
+
+    if main.inputargs.get("method","create") == "create":
+
+        main.check_required_inputargs(keys=["host_ips"])
+        main.create()
+
+    else:
+        usage()
+        print('method "{}" not supported!'.format(main.inputargs.get("method",
+                                                                     "create")))
+        exit(4)
