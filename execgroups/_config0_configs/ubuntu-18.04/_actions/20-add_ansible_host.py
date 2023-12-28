@@ -2,7 +2,7 @@ def default():
 
     task = {'method': 'shelloutconfig',
             'metadata': {'env_vars': [],
-                         'shelloutconfigs': ['config0-hub:::ansible::write_hosts']
+                         'shelloutconfigs': ['config0-publish:::ansible::write_hosts']
                          }
 
             }
