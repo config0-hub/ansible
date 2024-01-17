@@ -8,7 +8,7 @@ import json
 import sys
 
 from config0_publisher.loggerly import Config0Logger
-from config0_publisher.resource_manage import ResourceCmdHelper
+from config0_publisher.resource.manage import ResourceCmdHelper
 from config0_publisher.serialization import b64_decode
 
 class MissingEnvironmentVariable(Exception):
@@ -41,9 +41,7 @@ class Main(ResourceCmdHelper):
                                    set_variables=["method",
                                                   "shelloutconfig"],
                                    set_must_exists=["stateful_id"],
-                                   set_default_values={ "codebuild_basename":"config0-iac",
-                                                        "codebuildspec_version":"1",
-                                                        "failed_destroy":None,
+                                   set_default_values={ "failed_destroy":None,
                                                         "build_timeout":3600,
                                                         "build_image":"aws/codebuild/standard:4.0",
                                                         "compute_type":"BUILD_GENERAL1_SMALL",
