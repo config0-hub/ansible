@@ -42,7 +42,7 @@ class Main(ResourceCmdHelper):
                                                   "shelloutconfig"],
                                    set_must_exists=["stateful_id"],
                                    set_default_values={ "failed_destroy":None,
-                                                        "build_timeout":3600,
+                                                        "build_timeout":500,
                                                         "build_image":"aws/codebuild/standard:4.0",
                                                         "compute_type":"BUILD_GENERAL1_SMALL",
                                                         "image_type":"LINUX_CONTAINER",
