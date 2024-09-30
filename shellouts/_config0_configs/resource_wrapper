@@ -8,9 +8,6 @@ from config0_publisher.loggerly import Config0Logger
 from config0_publisher.resource.manage import ResourceCmdHelper
 from config0_publisher.serialization import b64_decode
 
-class MissingEnvironmentVariable(Exception):
-    pass
-
 def get_env_var(variable,default=None,must_exists=None):
 
     _value = os.environ.get(variable)
@@ -24,7 +21,7 @@ def get_env_var(variable,default=None,must_exists=None):
     if not must_exists: 
         return
 
-    raise MissingEnvironmentVariable("{} does not exist".format(variable))
+    raise Exception(f"{variable} does not exist")
 
 class Main(ResourceCmdHelper):
 
@@ -163,26 +160,6 @@ class Main(ResourceCmdHelper):
 
         return json.loads(results)
 
-    def _add_tags(self,resource):
-
-        tags = get_env_var("RESOURCE_TAGS")
-
-        if not tags: 
-            return
-
-        tags = [ tag.strip() for tag in tags.split(",") ]
-
-        if not isinstance(resource.get("tags"),list): 
-            resource["tags"] = []
-
-        resource["tags"].extend(tags)
-        resource["tags"].append("ansible")
-
-        # remove duplicates
-        resource["tags"] = list(set(resource["tags"]))
- 
-        return resource
-
     def _get_env_filepath(self):
 
         _docker_env_file = get_env_var("DOCKER_ENV_FILE",
@@ -289,7 +266,6 @@ environmental variables:
 
     create:
         RESOURCE_TYPE
-        RESOURCE_TAGS
 
        """)
     exit(4)
