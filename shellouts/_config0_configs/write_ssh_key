@@ -15,6 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import sys
+import os
+from config0_publisher.serialization import b64_decode
 from config0_publisher.loggerly import Config0Logger
 from config0_publisher.resource.manage import ResourceCmdHelper
 
@@ -40,18 +42,45 @@ class Main(ResourceCmdHelper):
         # e.g. ANS_VAR_mongodb_public_ips to mongodb_public_ips
         self.remap_app_vars()
 
+    # dup 46362
+    def _write_key_to_file(self, key, filepath, permission=0o400):
+        """
+        Write a base64-encoded value from inputargs to a file with specified permissions.
+
+        Args:
+            key: The key to look up in self.inputargs
+            filepath: The path where the file should be written
+            permission: File permissions to set (default: 0o400, read-only for owner)
+
+        Returns:
+            The filepath if successful, None otherwise
+        """
+        # Return early if the key doesn't exist or has no value
+        if not self.inputargs.get(key):
+            return None
+
+        # Decode the base64 value
+        decoded_content = b64_decode(self.inputargs[key])
+
+        # Write the content directly to the file
+        with open(filepath, "w") as output_file:
+            output_file.write(decoded_content)
+
+        # Set file permissions and copy to shared location
+        os.chmod(filepath, permission)
+        self.copy_file_to_share(filepath)
+
+        return filepath
+
     def create(self):
         """
         Creates a private SSH key file from the specified input arguments.
         """
         filepath = f"{self.exec_dir}/ssh_key.pem"
 
-        self.write_key_to_file(
+        self._write_key_to_file(
             key="private_key",
             filepath=filepath,
-            split_char="return",
-            deserialize=True,
-            add_return=True,
             permission=0o400
         )
 
