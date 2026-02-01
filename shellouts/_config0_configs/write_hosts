@@ -1,0 +1,107 @@
+#!/usr/bin/env python
+"""
+Ansible Hosts Configuration Manager
+
+This script manages the creation of host files for Ansible configurations.
+It reads IP addresses from input arguments and writes them to a hosts file.
+"""
+
+# Copyright (C) 2025 Gary Leong <gary@config0.com>
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import sys
+from config0_publisher.loggerly import Config0Logger
+from config0_publisher.resource.manage import ResourceCmdHelper
+
+
+class Main(ResourceCmdHelper):
+    """
+    Main class for managing Ansible host configurations.
+    Inherits from ResourceCmdHelper to utilize resource management functionalities.
+    """
+    
+    def __init__(self):
+        """
+        Initializes the Main class with necessary configurations.
+        """
+        ResourceCmdHelper.__init__(
+            self,
+            app_name="ansible",
+            set_must_exists=["stateful_id"]
+        )
+
+        self.classname = 'ANSIBLE_HOSTS'
+        self.logger = Config0Logger(self.classname, logcategory="cloudprovider")
+        self.logger.debug(f"Instantiating {self.classname}")
+        self.set_inputargs(add_app_vars=True)
+
+        # Remap application-specific variables in the input arguments.
+        # e.g. ANS_VAR_mongodb_public_ips to mongodb_public_ips
+        self.remap_app_vars()
+
+    def create(self):
+        """
+        Creates a hosts file with the specified IP addresses.
+        Retrieves IPs from input arguments and writes them to a file.
+        """
+        filepath = f"{self.exec_dir}/hosts"
+
+        _ips = self.inputargs["host_ips"].split(",")
+        if not _ips:
+            return
+
+        with open(filepath, "w") as _file:
+            for _ip in _ips:
+                _file.write(f"{_ip}\n")
+            _file.write("\n")
+
+        self.logger.debug("#" * 32)
+        self.logger.debug(f"host ips file written to {filepath}")
+        self.logger.debug("#" * 32)
+
+def usage():
+    """Displays usage instructions"""
+    print("""
+script + environmental variables
+
+or
+
+script + json_input (as argument)
+
+environmental variables:
+
+    create:
+        JOB_INSTANCE_ID
+        SCHEDULE_ID
+        RUN_ID
+        METHOD
+        ANS_VAR_host_ips
+       """)
+    exit(4)
+
+if __name__ == '__main__':
+    try:
+        json_input = sys.argv[1]
+    except IndexError:
+        json_input = None
+
+    main = Main()
+    if main.inputargs.get("method", "create") == "create":
+        main.check_required_inputargs(keys=["host_ips"])
+        main.create()
+    else:
+        usage()
+        print(f'method "{main.inputargs.get("method", "create")}" not supported!')
+        exit(4)
