@@ -48,7 +48,7 @@ class Main(ResourceCmdHelper):
         ResourceCmdHelper.__init__(
             self,
             app_name="ansible",
-            set_variables=["method", "shelloutconfig"],
+            set_variables=["method", "script"],
             set_must_exists=["stateful_id"],
             set_default_values={
                 "failed_destroy": None,
