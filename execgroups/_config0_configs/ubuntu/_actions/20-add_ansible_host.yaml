@@ -1,2 +1,2 @@
 scripts:
-- config0-hub:::ansible::write_hosts.sh
+- config0-hub:::ansible::write_hosts
