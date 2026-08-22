@@ -1,0 +1,11 @@
+desc: Validates shared host-order workspace relay across separate add_groups_to_host calls.
+release: 0.1.0
+author: Gary Leong <gary@config0.com>
+license: GPL-3.0
+categories:
+  - ansible
+  - validation
+tags:
+  - ansible
+  - workspace
+  - host-order

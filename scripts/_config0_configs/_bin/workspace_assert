@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""Assert that a prior workspace_lay host package populated the shared workspace."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+EXPECTED_CONTENT = "laid by workspace_lay"
+
+
+def require_env(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"{name} must be set")
+    return value
+
+
+def main() -> None:
+    workspace_id = require_env("WORKSPACE_ID")
+    chrootfiles_dest_dir = Path(require_env("CHROOTFILES_DEST_DIR"))
+    workspace_test_dir = chrootfiles_dest_dir / "var" / "tmp" / "workspace_test"
+    from_lay_path = workspace_test_dir / "from_lay.txt"
+    from_assert_path = workspace_test_dir / "from_assert.txt"
+
+    if not from_lay_path.is_file():
+        raise RuntimeError(f"expected workspace_lay file does not exist: {from_lay_path}")
+
+    actual_content = from_lay_path.read_text(encoding="utf-8")
+    if actual_content != EXPECTED_CONTENT:
+        raise RuntimeError(
+            "expected workspace_lay content "
+            f"{EXPECTED_CONTENT!r} at {from_lay_path}, got {actual_content!r}"
+        )
+
+    from_assert_path.write_text(
+        f"asserted workspace {workspace_id}\n",
+        encoding="utf-8",
+    )
+    print(f"from_lay_path={from_lay_path}")
+    print(f"from_assert_path={from_assert_path}")
+
+
+if __name__ == "__main__":
+    main()
