@@ -59,8 +59,8 @@ def run(stackargs):
         choices=["two_calls", "isolation"],
     )
 
-    stack.add_execgroup("config0-hub:::ansible::workspace_lay", name="workspace_lay")
-    stack.add_execgroup("config0-hub:::ansible::workspace_check", name="workspace_check")
+    stack.add_execgroup("config0-hub:::ansible::workspace_lay", "workspace_lay")
+    stack.add_execgroup("config0-hub:::ansible::workspace_check", "workspace_check")
 
     stack.init_variables()
     stack.init_execgroups()
