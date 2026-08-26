@@ -12,6 +12,7 @@ def _add_workspace_lay(stack, *, group, workspace_id):
         workspace_id=workspace_id,
         automation_phase="validation",
         hostname=stack.hostname,
+        install_name=stack.install_name,
         groups=[group],
     )
 
@@ -23,6 +24,7 @@ def _add_workspace_check(stack, *, group, workspace_id):
         workspace_id=workspace_id,
         automation_phase="validation",
         hostname=stack.hostname,
+        install_name=stack.install_name,
         groups=[group],
     )
 
@@ -53,6 +55,8 @@ def run(stackargs):
     stack = newStack(stackargs)
 
     stack.parse.add_required(key="hostname", types="str")
+    # selects the ssm_ec2_exec_eventbridge install the host orders run through
+    stack.parse.add_required(key="install_name", types="str")
     stack.parse.add_required(
         key="mode",
         types="str",
